@@ -18,7 +18,7 @@ public interface MessageDao extends JpaRepository<Message,Integer> {
 
     @Transactional
     @Modifying
-    @Query(value="update Message o set o.state=?1 where o.messageID=?2",nativeQuery =true)
+    @Query(value="update message set state=?1 where messageID=?2",nativeQuery =true)
     void updateState(int state, int messageID);
 
 }

@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 
 @Service
@@ -81,7 +82,8 @@ public class OrderServiceImpl implements OrderService {
         if(order == null) {
             throw new RuntimeException("订单不存在");
         }
-        orderDao.updateState(STATE_WAIT,order.getOrderID());
+        order.setState(STATE_WAIT);
+        orderDao.save(order);
     }
 
     @Override
@@ -90,7 +92,8 @@ public class OrderServiceImpl implements OrderService {
         if(order == null) {
             throw new RuntimeException("订单不存在");
         }
-        orderDao.updateState(STATE_FINISH,order.getOrderID());
+        order.setState(STATE_FINISH);
+        orderDao.save(order);
     }
 
     @Override
@@ -99,7 +102,8 @@ public class OrderServiceImpl implements OrderService {
         if(order == null) {
             throw new RuntimeException("订单不存在");
         }
-        orderDao.updateState(STATE_REJECT,order.getOrderID());
+        order.setState(STATE_REJECT);
+        orderDao.save(order);
     }
 
     @Override
@@ -109,6 +113,6 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<Order> findAuditOrder() {
-        return orderDao.findAudit(STATE_WAIT,STATE_FINISH);
+        return orderDao.findAllByStateIn(Arrays.asList(STATE_WAIT,STATE_FINISH));
     }
 }

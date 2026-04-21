@@ -107,6 +107,13 @@ class MessageServiceImplTest {
     }
 
     @Test
+    void rejectMessageThrowsWhenMessageMissing() {
+        when(messageDao.findByMessageID(100)).thenReturn(null);
+
+        assertThrows(RuntimeException.class, () -> messageService.rejectMessage(100));
+    }
+
+    @Test
     void findWaitStateReturnsPagedMessages() {
         PageRequest pageable = PageRequest.of(0, 5);
         Page<Message> page = new PageImpl<>(Arrays.asList(new Message()), pageable, 1);

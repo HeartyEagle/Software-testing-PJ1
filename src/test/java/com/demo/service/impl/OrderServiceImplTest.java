@@ -131,7 +131,8 @@ class OrderServiceImplTest {
 
         orderService.confirmOrder(5);
 
-        verify(orderDao).updateState(OrderService.STATE_WAIT, 5);
+        assertEquals(OrderService.STATE_WAIT, order.getState());
+        verify(orderDao).save(order);
     }
 
     @Test
@@ -142,7 +143,8 @@ class OrderServiceImplTest {
 
         orderService.finishOrder(4);
 
-        verify(orderDao).updateState(OrderService.STATE_FINISH, 4);
+        assertEquals(OrderService.STATE_FINISH, order.getState());
+        verify(orderDao).save(order);
     }
 
     @Test
@@ -153,7 +155,8 @@ class OrderServiceImplTest {
 
         orderService.rejectOrder(3);
 
-        verify(orderDao).updateState(OrderService.STATE_REJECT, 3);
+        assertEquals(OrderService.STATE_REJECT, order.getState());
+        verify(orderDao).save(order);
     }
 
     @Test
@@ -161,6 +164,50 @@ class OrderServiceImplTest {
         when(orderDao.findByOrderID(100)).thenReturn(null);
 
         assertThrows(RuntimeException.class, () -> orderService.confirmOrder(100));
+    }
+
+    @Test
+    void finishOrderThrowsWhenOrderMissing() {
+        when(orderDao.findByOrderID(101)).thenReturn(null);
+
+        assertThrows(RuntimeException.class, () -> orderService.finishOrder(101));
+    }
+
+    @Test
+    void rejectOrderThrowsWhenOrderMissing() {
+        when(orderDao.findByOrderID(102)).thenReturn(null);
+
+        assertThrows(RuntimeException.class, () -> orderService.rejectOrder(102));
+    }
+
+    @Test
+    void updateOrderThrowsWhenVenueMissing() {
+        Order order = new Order();
+        when(venueDao.findByVenueName("Missing Gym")).thenReturn(null);
+        when(orderDao.findByOrderID(15)).thenReturn(order);
+
+        assertThrows(NullPointerException.class,
+                () -> orderService.updateOrder(15, "Missing Gym", LocalDateTime.now(), 2, "alice"));
+    }
+
+    @Test
+    void updateOrderThrowsWhenOrderMissing() {
+        Venue venue = new Venue();
+        venue.setVenueID(7);
+        venue.setPrice(180);
+        when(venueDao.findByVenueName("Gym A")).thenReturn(venue);
+        when(orderDao.findByOrderID(999)).thenReturn(null);
+
+        assertThrows(NullPointerException.class,
+                () -> orderService.updateOrder(999, "Gym A", LocalDateTime.now(), 2, "alice"));
+    }
+
+    @Test
+    void submitThrowsWhenVenueMissing() {
+        when(venueDao.findByVenueName("Missing Gym")).thenReturn(null);
+
+        assertThrows(NullPointerException.class,
+                () -> orderService.submit("Missing Gym", LocalDateTime.now(), 2, "alice"));
     }
 
     @Test
@@ -177,10 +224,22 @@ class OrderServiceImplTest {
     @Test
     void findAuditOrderReturnsConfirmedAndFinishedOrders() {
         List<Order> orders = Arrays.asList(new Order(), new Order());
-        when(orderDao.findAudit(OrderService.STATE_WAIT, OrderService.STATE_FINISH)).thenReturn(orders);
+        when(orderDao.findAllByStateIn(Arrays.asList(OrderService.STATE_WAIT, OrderService.STATE_FINISH)))
+                .thenReturn(orders);
 
         List<Order> result = orderService.findAuditOrder();
 
         assertSame(orders, result);
+        verify(orderDao).findAllByStateIn(Arrays.asList(OrderService.STATE_WAIT, OrderService.STATE_FINISH));
+    }
+
+    @Test
+    void findAuditOrderReturnsEmptyListWhenDaoHasNoMatchingOrder() {
+        when(orderDao.findAllByStateIn(Arrays.asList(OrderService.STATE_WAIT, OrderService.STATE_FINISH)))
+                .thenReturn(Arrays.asList());
+
+        List<Order> result = orderService.findAuditOrder();
+
+        assertEquals(0, result.size());
     }
 }

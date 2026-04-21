@@ -13,9 +13,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,5 +80,30 @@ class OrderVoServiceImplTest {
         assertEquals(2, result.size());
         assertEquals("A", result.get(0).getVenueName());
         assertEquals("B", result.get(1).getVenueName());
+    }
+
+    @Test
+    void returnVoReturnsEmptyListWhenInputIsEmpty() {
+        List<OrderVo> result = orderVoService.returnVo(Collections.emptyList());
+
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void returnOrderVoByOrderIdThrowsWhenOrderMissing() {
+        when(orderDao.findByOrderID(404)).thenReturn(null);
+
+        assertThrows(NullPointerException.class, () -> orderVoService.returnOrderVoByOrderID(404));
+    }
+
+    @Test
+    void returnOrderVoByOrderIdThrowsWhenVenueMissing() {
+        Order order = new Order();
+        order.setOrderID(12);
+        order.setVenueID(7);
+        when(orderDao.findByOrderID(12)).thenReturn(order);
+        when(venueDao.findByVenueID(7)).thenReturn(null);
+
+        assertThrows(NullPointerException.class, () -> orderVoService.returnOrderVoByOrderID(12));
     }
 }

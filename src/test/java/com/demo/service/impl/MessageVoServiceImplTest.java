@@ -13,10 +13,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,5 +74,28 @@ class MessageVoServiceImplTest {
         assertEquals(2, result.size());
         assertEquals("Alice", result.get(0).getUserName());
         assertEquals("Bob", result.get(1).getUserName());
+    }
+
+    @Test
+    void returnVoReturnsEmptyListWhenInputIsEmpty() {
+        List<MessageVo> result = messageVoService.returnVo(Collections.emptyList());
+
+        assertEquals(0, result.size());
+    }
+
+    @Test
+    void returnMessageVoByMessageIdThrowsWhenMessageMissing() {
+        when(messageDao.findByMessageID(404)).thenReturn(null);
+
+        assertThrows(NullPointerException.class, () -> messageVoService.returnMessageVoByMessageID(404));
+    }
+
+    @Test
+    void returnMessageVoByMessageIdThrowsWhenUserMissing() {
+        Message message = new Message(9, "alice", "hello", LocalDateTime.now(), 2);
+        when(messageDao.findByMessageID(9)).thenReturn(message);
+        when(userDao.findByUserID("alice")).thenReturn(null);
+
+        assertThrows(NullPointerException.class, () -> messageVoService.returnMessageVoByMessageID(9));
     }
 }
