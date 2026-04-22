@@ -122,6 +122,23 @@ class MessageControllerIT extends AbstractControllerIT {
     }
 
     @Test
+    void sendMessageShouldUseLoggedInUserInsteadOfArbitrarySubmittedUserId() throws Exception {
+        User loggedInUser = saveUser("bob", "Bob", 0);
+        saveUser("alice", "Alice", 0);
+
+        mockMvc.perform(post("/sendMessage")
+                        .param("userID", "alice")
+                        .param("content", "forged")
+                        .sessionAttr("user", loggedInUser))
+                .andExpect(status().is3xxRedirection());
+
+        assertEquals(0, messageDao.findAllByUserID("alice", of(0, 10)).getContent().size(),
+                "submitted userID should not let a logged-in user impersonate someone else");
+        assertEquals(1, messageDao.findAllByUserID("bob", of(0, 10)).getContent().size(),
+                "the created message should belong to the logged-in user");
+    }
+
+    @Test
     void deleteMessageRemovesPersistedMessage() throws Exception {
         saveUser("alice", "Alice", 0);
         Message message = saveMessage("alice", "to delete", pendingMessageState());
@@ -131,6 +148,29 @@ class MessageControllerIT extends AbstractControllerIT {
                 .andExpect(jsonPath("$").value(true));
 
         assertFalse(messageDao.findById(message.getMessageID()).isPresent());
+    }
+
+    @Test
+    void modifyMessageShouldRequireLogin() {
+        saveUser("alice", "Alice", 0);
+        Message message = saveMessage("alice", "original", passedMessageState(), LocalDateTime.now().minusDays(1));
+
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(post("/modifyMessage.do")
+                        .param("messageID", String.valueOf(message.getMessageID()))
+                        .param("content", "updated")).andReturn());
+        assertTrue(exception.getCause() instanceof LoginException);
+    }
+
+    @Test
+    void deleteMessageShouldRequireLogin() {
+        saveUser("alice", "Alice", 0);
+        Message message = saveMessage("alice", "to delete", pendingMessageState());
+
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(post("/delMessage.do")
+                        .param("messageID", String.valueOf(message.getMessageID()))).andReturn());
+        assertTrue(exception.getCause() instanceof LoginException);
     }
 
     @Test

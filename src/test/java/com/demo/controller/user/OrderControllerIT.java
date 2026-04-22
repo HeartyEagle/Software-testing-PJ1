@@ -139,6 +139,33 @@ class OrderControllerIT extends AbstractControllerIT {
     }
 
     @Test
+    void finishOrderShouldRequireLogin() {
+        Venue venue = saveVenue("Gym A", 200);
+        Order order = saveOrder("alice", venue.getVenueID(), confirmedOrderState());
+
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(post("/finishOrder.do")
+                        .param("orderID", String.valueOf(order.getOrderID()))).andReturn());
+        assertTrue(exception.getCause() instanceof LoginException);
+    }
+
+    @Test
+    void finishOrderShouldNotAllowCompletingAnotherUsersOrder() throws Exception {
+        User attacker = saveUser("mallory", "Mallory", 0);
+        saveUser("alice", "Alice", 0);
+        Venue venue = saveVenue("Gym A", 200);
+        Order victimOrder = saveOrder("alice", venue.getVenueID(), confirmedOrderState());
+
+        mockMvc.perform(post("/finishOrder.do")
+                        .param("orderID", String.valueOf(victimOrder.getOrderID()))
+                        .sessionAttr("user", attacker))
+                .andExpect(status().isOk());
+
+        assertEquals(confirmedOrderState(), orderDao.findByOrderID(victimOrder.getOrderID()).getState(),
+                "another user should not be able to finish the victim's order");
+    }
+
+    @Test
     void modifyOrderDoLoadsExistingOrder() throws Exception {
         saveUser("alice", "Alice", 0);
         Venue venue = saveVenue("Gym A", 200);
@@ -158,6 +185,18 @@ class OrderControllerIT extends AbstractControllerIT {
         NestedServletException exception = assertThrows(NestedServletException.class,
                 () -> mockMvc.perform(get("/modifyOrder.do")));
         assertTrue(exception.getMessage().contains("orderID"));
+    }
+
+    @Test
+    void modifyOrderDoShouldRequireLogin() {
+        saveUser("alice", "Alice", 0);
+        Venue venue = saveVenue("Gym A", 200);
+        Order order = saveOrder("alice", venue.getVenueID(), pendingOrderState());
+
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(get("/modifyOrder.do")
+                        .param("orderID", String.valueOf(order.getOrderID()))).andReturn());
+        assertTrue(exception.getCause() instanceof LoginException);
     }
 
     @Test
@@ -186,6 +225,30 @@ class OrderControllerIT extends AbstractControllerIT {
     }
 
     @Test
+    void modifyOrderShouldNotAllowUpdatingAnotherUsersOrder() throws Exception {
+        User attacker = saveUser("mallory", "Mallory", 0);
+        saveUser("alice", "Alice", 0);
+        Venue originalVenue = saveVenue("Gym A", 200);
+        Venue newVenue = saveVenue("Gym B", 300);
+        Order victimOrder = saveOrder("alice", originalVenue.getVenueID(), confirmedOrderState());
+
+        mockMvc.perform(post("/modifyOrder")
+                        .param("venueName", "Gym B")
+                        .param("date", "2026-05-01")
+                        .param("startTime", "2026-05-01 14:00")
+                        .param("hours", "3")
+                        .param("orderID", String.valueOf(victimOrder.getOrderID()))
+                        .sessionAttr("user", attacker))
+                .andExpect(status().is3xxRedirection());
+
+        Order untouched = orderDao.findByOrderID(victimOrder.getOrderID());
+        assertEquals(originalVenue.getVenueID(), untouched.getVenueID(),
+                "another user should not be able to modify the victim's order");
+        assertEquals("alice", untouched.getUserID(),
+                "another user's order should remain owned by the victim");
+    }
+
+    @Test
     void deleteOrderRemovesPersistedOrder() throws Exception {
         saveUser("alice", "Alice", 0);
         Venue venue = saveVenue("Gym A", 200);
@@ -196,6 +259,22 @@ class OrderControllerIT extends AbstractControllerIT {
                 .andExpect(jsonPath("$").value(true));
 
         assertFalse(orderDao.findById(order.getOrderID()).isPresent());
+    }
+
+    @Test
+    void deleteOrderShouldNotAllowDeletingAnotherUsersOrder() throws Exception {
+        User attacker = saveUser("mallory", "Mallory", 0);
+        saveUser("alice", "Alice", 0);
+        Venue venue = saveVenue("Gym A", 200);
+        Order victimOrder = saveOrder("alice", venue.getVenueID(), pendingOrderState());
+
+        mockMvc.perform(post("/delOrder.do")
+                        .param("orderID", String.valueOf(victimOrder.getOrderID()))
+                        .sessionAttr("user", attacker))
+                .andExpect(status().isOk());
+
+        assertTrue(orderDao.findById(victimOrder.getOrderID()).isPresent(),
+                "another user should not be able to delete the victim's order");
     }
 
     @Test
@@ -224,6 +303,33 @@ class OrderControllerIT extends AbstractControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.venue.venueID").value(venue.getVenueID()))
                 .andExpect(jsonPath("$.orders").isEmpty());
+    }
+
+    @Test
+    void getOrderShouldHandleUnknownVenueGracefully() {
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(get("/order/getOrderList.do")
+                        .param("venueName", "Missing Gym")
+                        .param("date", "2026-05-02")).andReturn());
+        assertTrue(exception.getCause() instanceof RuntimeException);
+    }
+
+    @Test
+    void addOrderShouldRespectSubmittedDateParameter() throws Exception {
+        User user = saveUser("alice", "Alice", 0);
+        saveVenue("Gym A", 200);
+
+        mockMvc.perform(post("/addOrder.do")
+                        .param("venueName", "Gym A")
+                        .param("date", "2026-04-10")
+                        .param("startTime", "2026-04-11 09:00")
+                        .param("hours", "2")
+                        .sessionAttr("user", user))
+                .andExpect(status().is3xxRedirection());
+
+        Order saved = orderDao.findAllByUserID("alice", PageRequest.of(0, 10)).getContent().get(0);
+        assertEquals(LocalDateTime.of(2026, 4, 10, 9, 0), saved.getStartTime(),
+                "the saved order should combine the submitted date with the submitted start time");
     }
 
     @Test

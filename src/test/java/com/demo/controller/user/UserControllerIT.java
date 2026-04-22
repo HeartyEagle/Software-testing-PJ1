@@ -2,12 +2,15 @@ package com.demo.controller.user;
 
 import com.demo.controller.AbstractControllerIT;
 import com.demo.entity.User;
+import com.demo.exception.LoginException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.util.NestedServletException;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -187,6 +190,27 @@ class UserControllerIT extends AbstractControllerIT {
     }
 
     @Test
+    void updateUserShouldNotAllowLoggedInUserToModifyAnotherUsersProfile() throws Exception {
+        User attacker = saveUser("mallory", "Mallory", "mallory-pass", 0);
+        saveUser("alice", "Alice", "alice-pass", 0);
+        MockMultipartFile picture = new MockMultipartFile("picture", "", "application/octet-stream", new byte[0]);
+
+        mockMvc.perform(multipart("/updateUser.do")
+                        .file(picture)
+                        .param("userName", "Alice Hacked")
+                        .param("userID", "alice")
+                        .param("passwordNew", "pwnd")
+                        .param("email", "pwnd@test.com")
+                        .param("phone", "000000")
+                        .sessionAttr("user", attacker))
+                .andExpect(status().is3xxRedirection());
+
+        User victim = userDao.findByUserID("alice");
+        assertEquals("Alice", victim.getUserName(), "another user's profile should remain unchanged");
+        assertEquals("alice-pass", victim.getPassword(), "another user's password should remain unchanged");
+    }
+
+    @Test
     void checkPasswordReturnsTrueWhenPasswordMatches() throws Exception {
         saveUser("alice", "Alice", "secret", 0);
 
@@ -209,12 +233,40 @@ class UserControllerIT extends AbstractControllerIT {
     }
 
     @Test
+    void checkPasswordShouldRequireLogin() {
+        saveUser("alice", "Alice", "secret", 0);
+
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(get("/checkPassword.do")
+                        .param("userID", "alice")
+                        .param("password", "secret")).andReturn());
+        assertTrue(exception.getCause() instanceof LoginException);
+    }
+
+    @Test
+    void checkPasswordShouldHandleUnknownUserGracefully() {
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(get("/checkPassword.do")
+                        .param("userID", "missing-user")
+                        .param("password", "secret")
+                        .sessionAttr("user", saveUser("alice", "Alice", "secret", 0))).andReturn());
+        assertTrue(exception.getCause() instanceof RuntimeException);
+    }
+
+    @Test
     void userInfoReturnsView() throws Exception {
         User user = saveUser("viewer", "Viewer", "secret", 0);
 
         mockMvc.perform(get("/user_info").sessionAttr("user", user))
                 .andExpect(status().isOk())
                 .andExpect(view().name("user_info"));
+    }
+
+    @Test
+    void userInfoShouldRequireLogin() {
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(get("/user_info")).andReturn());
+        assertTrue(exception.getCause() instanceof LoginException);
     }
 
 }

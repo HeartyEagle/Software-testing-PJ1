@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -97,5 +98,16 @@ class MessageVoServiceImplTest {
         when(userDao.findByUserID("alice")).thenReturn(null);
 
         assertThrows(NullPointerException.class, () -> messageVoService.returnMessageVoByMessageID(9));
+    }
+
+    @Test
+    void returnMessageVoByMessageIdShouldThrowMeaningfulExceptionWhenMessageMissing() {
+        when(messageDao.findByMessageID(404)).thenReturn(null);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> messageVoService.returnMessageVoByMessageID(404));
+
+        assertTrue(exception.getMessage() != null && !exception.getMessage().isBlank(),
+                "missing messages should not surface as bare null pointers from the VO service");
     }
 }

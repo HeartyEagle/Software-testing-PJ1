@@ -1,10 +1,14 @@
 package com.demo.controller;
 
+import com.demo.exception.LoginException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.util.NestedServletException;
 
 import java.time.LocalDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
@@ -39,6 +43,13 @@ class IndexControllerIT extends AbstractControllerIT {
         mockMvc.perform(get("/admin_index"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/admin_index"));
+    }
+
+    @Test
+    void adminIndexShouldRequireAdminLogin() {
+        NestedServletException exception = assertThrows(NestedServletException.class,
+                () -> mockMvc.perform(get("/admin_index").sessionAttr("user", saveUser("alice", "Alice", 0))).andReturn());
+        assertTrue(exception.getCause() instanceof LoginException);
     }
 
     @Test

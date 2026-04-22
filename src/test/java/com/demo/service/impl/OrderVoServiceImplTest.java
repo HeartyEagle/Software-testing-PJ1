@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,5 +106,16 @@ class OrderVoServiceImplTest {
         when(venueDao.findByVenueID(7)).thenReturn(null);
 
         assertThrows(NullPointerException.class, () -> orderVoService.returnOrderVoByOrderID(12));
+    }
+
+    @Test
+    void returnOrderVoByOrderIdShouldThrowMeaningfulExceptionWhenOrderMissing() {
+        when(orderDao.findByOrderID(404)).thenReturn(null);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> orderVoService.returnOrderVoByOrderID(404));
+
+        assertTrue(exception.getMessage() != null && !exception.getMessage().isBlank(),
+                "missing orders should not surface as bare null pointers from the VO service");
     }
 }

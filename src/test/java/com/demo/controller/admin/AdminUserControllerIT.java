@@ -159,4 +159,18 @@ class AdminUserControllerIT extends AbstractAdminControllerIT {
 
         assertFalse(userDao.existsById(user.getId()));
     }
+
+    @Test
+    void deleteUserShouldRequireAdminPrivileges() throws Exception {
+        User normalUser = saveUser("normal-user", "Normal User", 0);
+        User victim = saveUser("victim-user", "Victim User", 0);
+
+        mockMvc.perform(post("/delUser.do")
+                        .param("id", String.valueOf(victim.getId()))
+                        .sessionAttr("user", normalUser))
+                .andExpect(status().isOk());
+
+        assertTrue(userDao.existsById(victim.getId()),
+                "a non-admin session should not be able to delete users through admin endpoints");
+    }
 }

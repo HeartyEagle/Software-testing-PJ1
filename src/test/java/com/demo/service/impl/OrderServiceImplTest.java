@@ -23,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -208,6 +210,34 @@ class OrderServiceImplTest {
 
         assertThrows(NullPointerException.class,
                 () -> orderService.submit("Missing Gym", LocalDateTime.now(), 2, "alice"));
+    }
+
+    @Test
+    void updateOrderShouldThrowMeaningfulExceptionWhenOrderMissing() {
+        Venue venue = new Venue();
+        venue.setVenueID(7);
+        venue.setPrice(180);
+        when(venueDao.findByVenueName("Gym A")).thenReturn(venue);
+        when(orderDao.findByOrderID(999)).thenReturn(null);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> orderService.updateOrder(999, "Gym A", LocalDateTime.now(), 2, "alice"));
+
+        assertTrue(exception.getMessage() != null && !exception.getMessage().isBlank(),
+                "missing orders should produce a meaningful business exception instead of a bare null pointer");
+        verify(orderDao, never()).save(org.mockito.ArgumentMatchers.any(Order.class));
+    }
+
+    @Test
+    void submitShouldThrowMeaningfulExceptionWhenVenueMissing() {
+        when(venueDao.findByVenueName("Missing Gym")).thenReturn(null);
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+                () -> orderService.submit("Missing Gym", LocalDateTime.now(), 2, "alice"));
+
+        assertTrue(exception.getMessage() != null && !exception.getMessage().isBlank(),
+                "missing venues should produce a meaningful business exception instead of a bare null pointer");
+        verify(orderDao, never()).save(org.mockito.ArgumentMatchers.any(Order.class));
     }
 
     @Test
